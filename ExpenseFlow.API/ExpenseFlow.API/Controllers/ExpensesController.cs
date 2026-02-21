@@ -1,6 +1,7 @@
 ﻿using ExpenseFlow.API.Dtos;
 using ExpenseFlow.API.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 
 namespace ExpenseFlow.API.Controllers;
 
@@ -13,6 +14,8 @@ public class ExpensesController : ControllerBase
     [HttpPost]
     public IActionResult CreateExpense([FromBody] CreateExpenseRequest request)
     {
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
         // Server controls these fields (client cannot set them)
         var expense = new Expense
         {
@@ -45,4 +48,33 @@ public class ExpensesController : ControllerBase
             CreatedAt = expense.CreatedAt,
             Status = expense.Status
         };
+    [HttpPut("{id:guid}/approve")]
+    public IActionResult ApproveExpense(Guid id)
+    {
+        var expense = _expenses.FirstOrDefault(e => e.Id == id);
+        if (expense is null)
+            return NotFound(new { message = "Expense not found." });
+
+        if (expense.Status != "Pending")
+            return Conflict(new { message = $"Expense is already {expense.Status} and cannot be changed." });
+
+        expense.Status = "Approved";
+
+        return Ok(ToResponse(expense));
+    }
+
+    [HttpPut("{id:guid}/reject")]
+    public IActionResult RejectExpense(Guid id)
+    {
+        var expense = _expenses.FirstOrDefault(e => e.Id == id);
+        if (expense is null)
+            return NotFound(new { message = "Expense not found." });
+
+        if (expense.Status != "Pending")
+            return Conflict(new { message = $"Expense is already {expense.Status} and cannot be changed." });
+
+        expense.Status = "Rejected";
+
+        return Ok(ToResponse(expense));
+    }
 }
