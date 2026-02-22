@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 using System.Linq;
 using ExpenseFlow.API.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ExpenseFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ExpensesController : ControllerBase
 {
    
@@ -18,7 +20,7 @@ public class ExpensesController : ControllerBase
     {
         _db = db;
     }
-
+    [Authorize(Roles = "Employee")]
     [HttpPost]
     public async Task<IActionResult> CreateExpense([FromBody] CreateExpenseRequest request)
     {
@@ -41,7 +43,8 @@ public class ExpensesController : ControllerBase
             Id = Guid.NewGuid(),
             ExpenseId = expense.Id,
             Action = "Created",
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            PerformedBy = User.Identity?.Name ?? "Unknown"
         });
 
         await _db.SaveChangesAsync();
@@ -59,7 +62,7 @@ public class ExpensesController : ControllerBase
         var responses = expenses.Select(ToResponse).ToList();
         return Ok(responses);
     }
-
+    [Authorize(Roles = "Manager")]
     [HttpPut("{id:guid}/approve")]
     public async Task<IActionResult> ApproveExpense(Guid id)
     {
@@ -77,14 +80,15 @@ public class ExpensesController : ControllerBase
             Id = Guid.NewGuid(),
             ExpenseId = expense.Id,
             Action = "Approved",
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            PerformedBy = User.Identity?.Name ?? "Unknown"
         });
 
         await _db.SaveChangesAsync();
 
         return Ok(ToResponse(expense));
     }
-
+    [Authorize(Roles = "Manager")]
     [HttpPut("{id:guid}/reject")]
     public async Task<IActionResult> RejectExpense(Guid id)
     {
@@ -102,7 +106,8 @@ public class ExpensesController : ControllerBase
             Id = Guid.NewGuid(),
             ExpenseId = expense.Id,
             Action = "Rejected",
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            PerformedBy = User.Identity?.Name ?? "Unknown"
         });
 
         await _db.SaveChangesAsync();
