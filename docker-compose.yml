@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: expenseflow-db
+    environment:
+      POSTGRES_USER: expenseflow
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: expenseflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - expenseflow_pgdata:/var/lib/postgresql/data
+
+volumes:
+  expenseflow_pgdata:

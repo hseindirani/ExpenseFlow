@@ -2,6 +2,8 @@
 using ExpenseFlow.API.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Linq;
+using ExpenseFlow.API.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace ExpenseFlow.API.Controllers;
 
@@ -9,14 +11,20 @@ namespace ExpenseFlow.API.Controllers;
 [Route("api/[controller]")]
 public class ExpensesController : ControllerBase
 {
-    private static readonly List<Expense> _expenses = new();
+   
+    private readonly AppDbContext _db;
+
+    public ExpensesController(AppDbContext db)
+    {
+        _db = db;
+    }
 
     [HttpPost]
-    public IActionResult CreateExpense([FromBody] CreateExpenseRequest request)
+    public async Task<IActionResult> CreateExpense([FromBody] CreateExpenseRequest request)
     {
         if (!ModelState.IsValid)
             return ValidationProblem(ModelState);
-        // Server controls these fields (client cannot set them)
+
         var expense = new Expense
         {
             Id = Guid.NewGuid(),
@@ -26,32 +34,36 @@ public class ExpensesController : ControllerBase
             Status = "Pending"
         };
 
-        _expenses.Add(expense);
+        await _db.Expenses.AddAsync(expense);
 
-        var response = ToResponse(expense);
-        return CreatedAtAction(nameof(GetAllExpenses), new { id = expense.Id }, response);
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            ExpenseId = expense.Id,
+            Action = "Created",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetAllExpenses), new { id = expense.Id }, ToResponse(expense));
     }
 
     [HttpGet]
-    public IActionResult GetAllExpenses()
+    public async Task<IActionResult> GetAllExpenses()
     {
-        var responses = _expenses.Select(ToResponse).ToList();
+        var expenses = await _db.Expenses
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync();
+
+        var responses = expenses.Select(ToResponse).ToList();
         return Ok(responses);
     }
 
-    private static ExpenseResponse ToResponse(Expense expense) =>
-        new()
-        {
-            Id = expense.Id,
-            Description = expense.Description,
-            Amount = expense.Amount,
-            CreatedAt = expense.CreatedAt,
-            Status = expense.Status
-        };
     [HttpPut("{id:guid}/approve")]
-    public IActionResult ApproveExpense(Guid id)
+    public async Task<IActionResult> ApproveExpense(Guid id)
     {
-        var expense = _expenses.FirstOrDefault(e => e.Id == id);
+        var expense = await _db.Expenses.FirstOrDefaultAsync(e => e.Id == id);
         if (expense is null)
             return NotFound(new { message = "Expense not found." });
 
@@ -60,13 +72,23 @@ public class ExpensesController : ControllerBase
 
         expense.Status = "Approved";
 
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            ExpenseId = expense.Id,
+            Action = "Approved",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
         return Ok(ToResponse(expense));
     }
 
     [HttpPut("{id:guid}/reject")]
-    public IActionResult RejectExpense(Guid id)
+    public async Task<IActionResult> RejectExpense(Guid id)
     {
-        var expense = _expenses.FirstOrDefault(e => e.Id == id);
+        var expense = await _db.Expenses.FirstOrDefaultAsync(e => e.Id == id);
         if (expense is null)
             return NotFound(new { message = "Expense not found." });
 
@@ -75,6 +97,42 @@ public class ExpensesController : ControllerBase
 
         expense.Status = "Rejected";
 
+        await _db.AuditLogs.AddAsync(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            ExpenseId = expense.Id,
+            Action = "Rejected",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
         return Ok(ToResponse(expense));
+    }
+
+    [HttpGet("{id:guid}/audit")]
+    public async Task<IActionResult> GetAuditLogs(Guid id)
+    {
+        var exists = await _db.Expenses.AnyAsync(e => e.Id == id);
+        if (!exists)
+            return NotFound(new { message = "Expense not found." });
+
+        var logs = await _db.AuditLogs
+            .Where(l => l.ExpenseId == id)
+            .OrderBy(l => l.Timestamp)
+            .ToListAsync();
+
+        return Ok(logs);
+    }
+    private static ExpenseResponse ToResponse(Expense expense)
+    {
+        return new ExpenseResponse
+        {
+            Id = expense.Id,
+            Description = expense.Description,
+            Amount = expense.Amount,
+            CreatedAt = expense.CreatedAt,
+            Status = expense.Status
+        };
     }
 }
