@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   db:
     image: postgres:16
@@ -11,6 +10,23 @@ services:
       - "5433:5432"
     volumes:
       - expenseflow_pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./ExpenseFlow.API/ExpenseFlow.API
+      dockerfile: Dockerfile
+    container_name: expenseflow-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=expenseflow;Username=expenseflow;Password=1234
+      - Jwt__Secret=THIS_IS_A_DEVELOPMENT_SECRET_KEY_123456789
+      - Jwt__Issuer=ExpenseFlow
+      - Jwt__Audience=ExpenseFlowUsers
+      - ASPNETCORE_URLS=http://+:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - db
 
 volumes:
   expenseflow_pgdata:
