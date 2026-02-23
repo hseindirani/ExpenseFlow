@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
-using Microsoft.OpenApi.Models;
+using ExpenseFlow.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +45,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
+builder.Services.AddScoped<ExpenseWorkflowService>();
 // Register Token Service
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 

@@ -5,6 +5,7 @@ using System.Linq;
 using ExpenseFlow.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using ExpenseFlow.API.Services;
 
 namespace ExpenseFlow.API.Controllers;
 
@@ -15,10 +16,12 @@ public class ExpensesController : ControllerBase
 {
    
     private readonly AppDbContext _db;
+    private readonly ExpenseWorkflowService _workflow;
 
-    public ExpensesController(AppDbContext db)
+    public ExpensesController(AppDbContext db, ExpenseWorkflowService workflow)
     {
         _db = db;
+        _workflow = workflow;
     }
     [Authorize(Roles = "Employee")]
     [HttpPost]
@@ -70,11 +73,14 @@ public class ExpensesController : ControllerBase
         if (expense is null)
             return NotFound(new { message = "Expense not found." });
 
-        if (expense.Status != "Pending")
-            return Conflict(new { message = $"Expense is already {expense.Status} and cannot be changed." });
-
-        expense.Status = "Approved";
-
+        try
+        {
+            _workflow.Approve(expense);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
         await _db.AuditLogs.AddAsync(new AuditLog
         {
             Id = Guid.NewGuid(),
@@ -96,10 +102,14 @@ public class ExpensesController : ControllerBase
         if (expense is null)
             return NotFound(new { message = "Expense not found." });
 
-        if (expense.Status != "Pending")
-            return Conflict(new { message = $"Expense is already {expense.Status} and cannot be changed." });
-
-        expense.Status = "Rejected";
+        try
+        {
+            _workflow.Reject(expense);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
 
         await _db.AuditLogs.AddAsync(new AuditLog
         {
