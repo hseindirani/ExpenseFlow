@@ -57,10 +57,21 @@ CI ensures build + test validation on every commit
 
 ---
 
-## Run with Docker
-```bash
-docker compose up --build
+## Deployment (AWS EC2)
 
----
+The application is deployed on an Amazon EC2 instance using Docker Compose.
+
+Access
+
+Swagger UI:
+http://<EC2_PUBLIC_IP>:5000/swagger
+
+Health check:
+http://<EC2_PUBLIC_IP>:5000/health
+
+Notes
+API is exposed on port 5000
+PostgreSQL runs internally (not publicly accessible)
+Services communicate via Docker network (Host=db)
 
 
